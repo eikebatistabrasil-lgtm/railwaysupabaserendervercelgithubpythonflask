@@ -1,1 +1,443 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Público</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --bg-dark: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --text-light: #ffffff;
+            --text-muted: #a0a0a0;
+            --border: #333;
+            --success: #10b981;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 95vh;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h1 {
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+        
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-card);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        
+        .messages-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            padding: 12px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            position: relative;
+        }
+        
+        .message.own {
+            align-self: flex-end;
+            background: var(--primary);
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.other {
+            align-self: flex-start;
+            background: #2d2d2d;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+        
+        .username {
+            font-weight: bold;
+        }
+        
+        .message.own .username {
+            color: #e0e7ff;
+        }
+        
+        .message.other .username {
+            color: var(--primary);
+        }
+        
+        .timestamp {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+        
+        .message-content {
+            word-wrap: break-word;
+        }
+        
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            background: #1f1f1f;
+        }
+        
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 12px;
+            background: #2d2d2d;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+        
+        button {
+            padding: 12px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background: var(--primary-dark);
+        }
+        
+        button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+        
+        .alert {
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .alert-success {
+            background: #064e3b;
+            color: #6ee7b7;
+            border: 1px solid #10b981;
+        }
+        
+        .alert-error {
+            background: #7f1d1d;
+            color: #fca5a5;
+            border: 1px solid #ef4444;
+        }
+        
+        .typing-indicator {
+            padding: 10px 15px;
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-comments"></i> Chat Público</h1>
+            <p class="subtitle">Converse em tempo real com todos os usuários</p>
+        </header>
+        
+        <div id="alertContainer"></div>
+        
+        <div class="chat-container">
+            <div class="messages-area" id="messagesArea">
+                <div class="empty-state">
+                    <i class="fas fa-comment-slash"></i>
+                    <p>Nenhuma mensagem ainda. Seja o primeiro a escrever!</p>
+                </div>
+            </div>
+            
+            <div class="typing-indicator" id="typingIndicator">
+                <i class="fas fa-pencil-alt"></i> Alguém está digitando...
+            </div>
+            
+            <div class="input-area">
+                <div class="form-group">
+                    <input type="text" id="usernameInput" placeholder="Seu nome" maxlength="30">
+                    <input type="text" id="messageInput" placeholder="Digite sua mensagem..." maxlength="500">
+                    <button onclick="sendMessage()" id="sendButton">
+                        <i class="fas fa-paper-plane"></i> Enviar
+                    </button>
+                </div>
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+                    <i class="fas fa-sync-alt"></i> Atualizando automaticamente a cada 3 segundos
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <script>
+        // Configuração do Supabase - SUBSTITUA COM SUAS CREDENCIAIS
+        const SUPABASE_URL = "https://seu-projeto.supabase.co";
+        const SUPABASE_KEY = "sua-chave-anonima";
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Variáveis globais
+        let currentUsername = '';
+        let autoRefreshInterval;
+
+        // Inicialização quando a página carrega
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMessages();
+            setupAutoRefresh();
+            setupEnterKey();
+            
+            // Tentar recuperar username salvo
+            const savedUsername = localStorage.getItem('chatUsername');
+            if (savedUsername) {
+                document.getElementById('usernameInput').value = savedUsername;
+                currentUsername = savedUsername;
+            }
+        });
+
+        // Configurar tecla Enter para enviar
+        function setupEnterKey() {
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        }
+
+        // Configurar atualização automática
+        function setupAutoRefresh() {
+            autoRefreshInterval = setInterval(loadMessages, 3000); // Atualiza a cada 3 segundos
+        }
+
+        // Mostrar alertas
+        function showAlert(message, type = 'success') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                ${message}
+            `;
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 4000);
+        }
+
+        // Carregar mensagens
+        async function loadMessages() {
+            try {
+                const { data, error } = await supabase
+                    .from('messages')
+                    .select('*')
+                    .order('created_at', { ascending: true }); // Mais antigas primeiro
+                
+                if (error) throw error;
+                
+                displayMessages(data);
+                
+            } catch (error) {
+                console.error('Erro ao carregar mensagens:', error);
+                // Não mostra alerta para evitar spam durante auto-refresh
+            }
+        }
+
+        // Exibir mensagens na tela
+        function displayMessages(messages) {
+            const messagesArea = document.getElementById('messagesArea');
+            
+            if (messages.length === 0) {
+                messagesArea.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-comment-slash"></i>
+                        <p>Nenhuma mensagem ainda. Seja o primeiro a escrever!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Remover estado vazio se existir
+            const emptyState = messagesArea.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            
+            messagesArea.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                const isOwnMessage = msg.username === currentUsername;
+                
+                messageDiv.className = `message ${isOwnMessage ? 'own' : 'other'}`;
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <span class="username">${msg.username}</span>
+                        <span class="timestamp">${formatTime(msg.created_at)}</span>
+                    </div>
+                    <div class="message-content">${escapeHtml(msg.message)}</div>
+                `;
+                
+                messagesArea.appendChild(messageDiv);
+            });
+            
+            // Rolagem automática para a última mensagem
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        // Enviar mensagem
+        async function sendMessage() {
+            const usernameInput = document.getElementById('usernameInput');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            
+            const username = usernameInput.value.trim();
+            const message = messageInput.value.trim();
+            
+            // Validações
+            if (!username) {
+                showAlert('Por favor, digite seu nome', 'error');
+                usernameInput.focus();
+                return;
+            }
+            
+            if (!message) {
+                showAlert('Por favor, digite uma mensagem', 'error');
+                messageInput.focus();
+                return;
+            }
+            
+            if (username.length > 30) {
+                showAlert('Nome muito longo (máx. 30 caracteres)', 'error');
+                return;
+            }
+            
+            if (message.length > 500) {
+                showAlert('Mensagem muito longa (máx. 500 caracteres)', 'error');
+                return;
+            }
+            
+            // Salvar username
+            if (username !== currentUsername) {
+                currentUsername = username;
+                localStorage.setItem('chatUsername', username);
+            }
+            
+            // Desabilitar botão durante envio
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('messages')
+                    .insert([{ username, message }]);
+                
+                if (error) throw error;
+                
+                // Limpar campo de mensagem
+                messageInput.value = '';
+                
+                // Recarregar mensagens para mostrar a nova
+                loadMessages();
+                
+            } catch (error) {
+                console.error('Erro ao enviar mensagem:', error);
+                showAlert('Erro ao enviar mensagem: ' + error.message, 'error');
+            } finally {
+                // Reabilitar botão
+                sendButton.disabled = false;
+                sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+            }
+        }
+
+        // Funções auxiliares
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
