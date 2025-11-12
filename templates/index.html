@@ -1,1 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conexão Supabase</title>
+  <style>
+    body {
+      background: #000;
+      color: #ffd700;
+      font-family: system-ui, sans-serif;
+      padding: 20px;
+    }
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 12px;
+      border-radius: 8px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔗 Conectado ao Supabase</h1>
+  <p>Este HTML faz a conexão direta via Supabase JS.</p>
+  <pre id="saida">Carregando...</pre>
 
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    const SUPABASE_URL = 'https://bceykkqbdsdrclmeybxx.supabase.co'
+    const SUPABASE_ANON = 'COLOQUE_AQUI_SUA_ANON_KEY'
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+    async function carregar() {
+      const el = document.getElementById('saida')
+      try {
+        const { data, error } = await supabase.from('usuarios').select('*').limit(5)
+        if (error) el.textContent = 'Erro: ' + JSON.stringify(error, null, 2)
+        else el.textContent = JSON.stringify(data, null, 2)
+      } catch (e) {
+        el.textContent = 'Exceção: ' + e.message
+      }
+    }
+
+    carregar()
+  </script>
+</body>
+</html>
